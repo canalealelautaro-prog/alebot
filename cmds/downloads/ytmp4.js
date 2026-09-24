@@ -59,7 +59,15 @@ const cmd = {
         return msg.reply('《✧》No se pudo descargar el *video*, intenta más tarde.')
       }
 
-      const video_buffer = await remuxForWhatsapp(video_buffer_raw).catch(() => video_buffer_raw)
+      let video_buffer = video_buffer_raw
+      let remux_error = null
+
+      try {
+        video_buffer = await remuxForWhatsapp(video_buffer_raw)
+      } catch (remux_err) {
+        remux_error = remux_err?.message || String(remux_err)
+        console.error('[ytmp4] Falló el remux con ffmpeg:', remux_error)
+      }
 
       const size_bytes = video_buffer.length
       const size_text = formatBytes(size_bytes)
@@ -84,7 +92,7 @@ const cmd = {
 
       const caption = `乂 *Video descargado*
 
-> ❒ Tamaño › *${size_text}*`
+> ❒ Tamaño › *${size_text}*${remux_error ? `\n> ⚠️ Remux falló: ${remux_error.slice(0, 150)}` : ''}`
 
       if (send_as_document) {
         await sock.sendMessage(msg.chat, {
@@ -171,7 +179,7 @@ async function getVideoFromApi(url) {
   const api_url = `${api_base}/dl/ytmp4?key=${api_key}&url=${encodeURIComponent(url)}&quality=auto`
 
   const res = await fetch(api_url, {
-    headers: { accept: 'application/json' }
+    headers: { accept: 'application/json', 'x-api-key': api_key }
   })
 
   const text = await res.text()
