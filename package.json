@@ -28,6 +28,7 @@
     "npm": ">=10.9.4"
   },
   "dependencies": {
+    "ffmpeg-static": "^5.2.0",
     "@vitalets/google-translate-api": "latest",
     "aptoide-scraper": "github:DIEGO-OFC/dv-aptoide-scraper",
     "axios": "^0.24.0",
