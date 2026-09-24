@@ -155,7 +155,7 @@ async function getVideoInfo(input, video_id) {
 
 async function getVideoFromApi(url) {
   const { url: api_base, key: api_key } = global.APIs.evogb
-  const api_url = `${api_base}/dl/youtubeplay-private?key=${api_key}&query=${encodeURIComponent(url)}&type=video&quality=auto`
+  const api_url = `${api_base}/dl/ytmp4?key=${api_key}&url=${encodeURIComponent(url)}&quality=auto`
 
   const res = await fetch(api_url, {
     headers: { accept: 'application/json' }
@@ -179,13 +179,13 @@ async function getVideoFromApi(url) {
     throw new Error(data?.message || 'La API no devolvió un resultado válido.')
   }
 
-  if (!data?.data?.download_url) {
+  if (!data?.data?.dl) {
     throw new Error('La API no devolvió la URL de descarga.')
   }
 
   return {
-    url: data.data.download_url,
-    name: data.data.filename || 'video.mp4'
+    url: data.data.dl,
+    name: data.data.title ? `${data.data.title}.mp4` : 'video.mp4'
   }
 }
 
