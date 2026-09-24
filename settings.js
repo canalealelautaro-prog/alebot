@@ -24,7 +24,7 @@ global.my = {
 
 global.APIs = { 
   evogb: { url: "https://api.evogb.org", key: "alefox" },
-  yuki: { url: "https://api.yuki-wabot.my.id", key: "YukiBot-MD" },
+  yuki: { url: "https://api.yuki-wabot.my.id", key: "alefox" },
   vreden: { url: "https://api.vreden.web.id", key: null },
   ootaizumi: { url: "https://api.ootaizumi.web.id", key: null },
   delirius: { url: "https://api.delirius.store", key: null },
