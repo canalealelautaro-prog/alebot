@@ -5,6 +5,9 @@ import { tmpdir } from 'os'
 import path from 'path'
 import Crypto from 'crypto'
 import ff from 'fluent-ffmpeg'
+import ffmpegPath from 'ffmpeg-static'
+
+ff.setFfmpegPath(ffmpegPath)
 
 const cmd = {
   command: ['play2', 'mp4', 'ytmp4', 'ytvideo', 'playvideo'],
