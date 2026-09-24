@@ -48,9 +48,15 @@ const cmd = {
 
       const file_name = sanitizeFileName(title) + '.mp4'
 
-      const size_bytes = await getRemoteFileSize(download.url).catch(() => null)
-      const size_text = size_bytes ? formatBytes(size_bytes) : 'Desconocido'
-      const send_as_document = size_bytes ? size_bytes > max_video_size : false
+      const video_buffer = await getRemoteFileBuffer(download.url).catch(() => null)
+
+      if (!video_buffer?.length) {
+        return msg.reply('《✧》No se pudo descargar el *video*, intenta más tarde.')
+      }
+
+      const size_bytes = video_buffer.length
+      const size_text = formatBytes(size_bytes)
+      const send_as_document = size_bytes > max_video_size
 
       const info_message = `➩ Descargando › *${title}*
 
@@ -75,7 +81,7 @@ const cmd = {
 
       if (send_as_document) {
         await sock.sendMessage(msg.chat, {
-          document: { url: download.url },
+          document: video_buffer,
           mimetype: 'video/mp4',
           fileName: file_name,
           caption
@@ -85,7 +91,7 @@ const cmd = {
 
       try {
         await sock.sendMessage(msg.chat, {
-          video: { url: download.url },
+          video: video_buffer,
           mimetype: 'video/mp4',
           fileName: file_name,
           caption,
@@ -93,7 +99,7 @@ const cmd = {
         }, { quoted: msg })
       } catch {
         await sock.sendMessage(msg.chat, {
-          document: { url: download.url },
+          document: video_buffer,
           mimetype: 'video/mp4',
           fileName: file_name,
           caption
@@ -189,41 +195,14 @@ async function getVideoFromApi(url) {
   }
 }
 
-async function getRemoteFileSize(url) {
-  const head = await fetch(url, {
-    method: 'HEAD',
-    headers: {
-      'user-agent': 'Mozilla/5.0'
-    }
-  }).catch(() => null)
+async function getRemoteFileBuffer(url) {
+  const res = await fetch(url, {
+    headers: { 'user-agent': 'Mozilla/5.0' }
+  })
 
-  let length = head?.headers?.get('content-length')
-  let bytes = Number(length)
+  if (!res.ok) throw new Error(`No se pudo descargar el video: HTTP ${res.status}`)
 
-  if (Number.isFinite(bytes) && bytes > 0) {
-    return bytes
-  }
-
-  const range = await fetch(url, {
-    method: 'GET',
-    headers: {
-      range: 'bytes=0-0',
-      'user-agent': 'Mozilla/5.0'
-    }
-  }).catch(() => null)
-
-  const content_range = range?.headers?.get('content-range')
-  const match = content_range?.match(/\/(\d+)$/)
-
-  if (match?.[1]) {
-    bytes = Number(match[1])
-    if (Number.isFinite(bytes) && bytes > 0) return bytes
-  }
-
-  length = range?.headers?.get('content-length')
-  bytes = Number(length)
-
-  return Number.isFinite(bytes) && bytes > 0 ? bytes : null
+  return Buffer.from(await res.arrayBuffer())
 }
 
 async function getThumbnail(url) {
