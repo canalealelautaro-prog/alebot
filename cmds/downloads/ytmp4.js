@@ -211,7 +211,15 @@ async function remuxForWhatsapp(buffer) {
   try {
     await new Promise((resolve, reject) => {
       ff(tmp_in)
-        .outputOptions(['-movflags', '+faststart', '-c', 'copy'])
+        .videoCodec('libx264')
+        .audioCodec('aac')
+        .outputOptions([
+          '-profile:v', 'baseline',
+          '-level', '3.0',
+          '-pix_fmt', 'yuv420p',
+          '-preset', 'veryfast',
+          '-movflags', '+faststart'
+        ])
         .toFormat('mp4')
         .on('error', reject)
         .on('end', resolve)
