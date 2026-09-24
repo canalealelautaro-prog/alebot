@@ -3,7 +3,7 @@ import chalk from "chalk";
 import { fileURLToPath } from "url";
 import path from "path";
 
-global.owner = ['573115975891', '50498273976', '542944161604'];
+global.owner = ['542944161604'];
 
 // Si se define la variable de entorno DATA_DIR (ej. un Volume en Railway montado en /data),
 // la base de datos y las sesiones se guardan ahí para no perderse en cada redeploy.
