@@ -32,12 +32,18 @@ async function getFacebookMedia(url) {
   const endpoint = `${global.APIs.evogb.url}/dl/facebook?url=${encodeURIComponent(url)}&key=${global.APIs.evogb.key}`
   const res = await fetch(endpoint).then(r => r.json()).catch(() => null)
 
-  if (!res?.status || !res?.data?.download_url) return null
+  if (!res?.status || !Array.isArray(res?.resultados)) return null
 
-  const isImage = /\.(jpe?g|png|webp)$/i.test(res.data.filename || '')
+  const candidates = res.resultados
+    .filter(r => typeof r.url === 'string' && r.url.startsWith('http'))
+    .map(r => ({ ...r, resolution: parseInt(r.quality) || 0 }))
+    .sort((a, b) => b.resolution - a.resolution)
+
+  const best = candidates[0]
+  if (!best) return null
 
   return {
-    type: isImage ? 'image' : 'video',
-    url: res.data.download_url
+    type: 'video',
+    url: best.url
   }
 }
