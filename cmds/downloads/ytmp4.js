@@ -1,5 +1,10 @@
 import yts from 'yt-search'
 import fetch from 'node-fetch'
+import fs from 'fs'
+import { tmpdir } from 'os'
+import path from 'path'
+import Crypto from 'crypto'
+import ff from 'fluent-ffmpeg'
 
 const cmd = {
   command: ['play2', 'mp4', 'ytmp4', 'ytvideo', 'playvideo'],
@@ -48,11 +53,13 @@ const cmd = {
 
       const file_name = sanitizeFileName(title) + '.mp4'
 
-      const video_buffer = await getRemoteFileBuffer(download.url).catch(() => null)
+      const video_buffer_raw = await getRemoteFileBuffer(download.url).catch(() => null)
 
-      if (!video_buffer?.length) {
+      if (!video_buffer_raw?.length) {
         return msg.reply('《✧》No se pudo descargar el *video*, intenta más tarde.')
       }
+
+      const video_buffer = await remuxForWhatsapp(video_buffer_raw).catch(() => video_buffer_raw)
 
       const size_bytes = video_buffer.length
       const size_text = formatBytes(size_bytes)
@@ -192,6 +199,29 @@ async function getVideoFromApi(url) {
   return {
     url: data.data.dl,
     name: data.data.title ? `${data.data.title}.mp4` : 'video.mp4'
+  }
+}
+
+async function remuxForWhatsapp(buffer) {
+  const tmp_in = path.join(tmpdir(), `${Crypto.randomBytes(6).readUIntLE(0, 6).toString(36)}.mp4`)
+  const tmp_out = path.join(tmpdir(), `${Crypto.randomBytes(6).readUIntLE(0, 6).toString(36)}.mp4`)
+
+  fs.writeFileSync(tmp_in, buffer)
+
+  try {
+    await new Promise((resolve, reject) => {
+      ff(tmp_in)
+        .outputOptions(['-movflags', '+faststart', '-c', 'copy'])
+        .toFormat('mp4')
+        .on('error', reject)
+        .on('end', resolve)
+        .save(tmp_out)
+    })
+
+    return fs.readFileSync(tmp_out)
+  } finally {
+    if (fs.existsSync(tmp_in)) fs.unlinkSync(tmp_in)
+    if (fs.existsSync(tmp_out)) fs.unlinkSync(tmp_out)
   }
 }
 
