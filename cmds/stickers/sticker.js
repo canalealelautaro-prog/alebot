@@ -57,6 +57,7 @@ export default {
           const p = spawn('ffmpeg', ['-y', '-i', inputPath, '-vf', 'fps=10,scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=0x00000000', '-loop', '0', gifPath]);
           let err = '';
           p.stderr.on('data', (d) => err += d.toString());
+          p.on('error', (e) => reject(e));
           p.on('close', (code) => {
             if (code === 0) resolve();
             else reject(new Error(err));
@@ -77,6 +78,7 @@ export default {
           const p = spawn('ffmpeg', args, { stdio: ['ignore', 'pipe', 'pipe'] });
           let err = '';
           p.stderr.on('data', (d) => err += d.toString());
+          p.on('error', (e) => reject(e));
           p.on('close', (code) => {
             if (code === 0) resolve();
             else reject(new Error(err));
