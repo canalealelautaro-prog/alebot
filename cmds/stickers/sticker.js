@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { spawn } from 'child_process';
 import fetch from 'node-fetch';
+import ffmpegPath from 'ffmpeg-static';
 import exif from '#core/exif';
 import db from '#db';
 const { writeExif } = exif;
@@ -54,9 +55,10 @@ export default {
       const convertToGif = async (inputPath) => {
         const gifPath = `./tmp/conv-${Date.now()}.gif`;
         await new Promise((resolve, reject) => {
-          const p = spawn('ffmpeg', ['-y', '-i', inputPath, '-vf', 'fps=10,scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=0x00000000', '-loop', '0', gifPath]);
+          const p = spawn(ffmpegPath, ['-y', '-i', inputPath, '-vf', 'fps=10,scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=0x00000000', '-loop', '0', gifPath]);
           let err = '';
           p.stderr.on('data', (d) => err += d.toString());
+          p.on('error', (e) => reject(e));
           p.on('close', (code) => {
             if (code === 0) resolve();
             else reject(new Error(err));
@@ -74,9 +76,10 @@ export default {
           args = ['-y', '-i', inputPath, '-vf', vf, '-an', '-fps_mode', 'passthrough', '-c:v', 'libwebp_anim', '-preset', 'picture', '-compression_level', '6', '-q:v', '70', '-loop', '0', outputPath];
         }
         await new Promise((resolve, reject) => {
-          const p = spawn('ffmpeg', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+          const p = spawn(ffmpegPath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
           let err = '';
           p.stderr.on('data', (d) => err += d.toString());
+          p.on('error', (e) => reject(e));
           p.on('close', (code) => {
             if (code === 0) resolve();
             else reject(new Error(err));

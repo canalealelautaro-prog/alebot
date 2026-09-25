@@ -17,11 +17,11 @@ export default {
       const json = await res.json()
       if (!json.status) return msg.reply('《✧》 No se encontró contenido válido en TikTok.')
       if (isUrl) {
-        const download_url = json.data?.download_url
-        const filename = json.data?.filename || ''
+        const download_url = json.data?.dl
+        const isImage = json.data?.type === 'image'
         if (!download_url) return msg.reply('《✧》 Enlace inválido o sin contenido descargable.')
         const caption = `ㅤ۟∩　ׅ　★ ໌　ׅ　🅣𝗂𝗄𝖳𝗈𝗄 🅓ownload　ׄᰙ`.trim()
-        if (/\.(jpe?g|png|webp)$/i.test(filename)) {
+        if (isImage) {
           await sock.sendMessage(msg.chat, { image: { url: download_url }, caption }, { quoted: msg })
         } else {
           await sock.sendMessage(msg.chat, { video: { url: download_url }, caption }, { quoted: msg })

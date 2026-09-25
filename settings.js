@@ -3,7 +3,7 @@ import chalk from "chalk";
 import { fileURLToPath } from "url";
 import path from "path";
 
-global.owner = ['573115975891', '50498273976'];
+global.owner = ['5492944161604'];
 
 // Si se define la variable de entorno DATA_DIR (ej. un Volume en Railway montado en /data),
 // la base de datos y las sesiones se guardan ahí para no perderse en cada redeploy.
@@ -24,7 +24,7 @@ global.my = {
 
 global.APIs = { 
   evogb: { url: "https://api.evogb.org", key: "alefox" },
-  yuki: { url: "https://api.yuki-wabot.my.id", key: "YukiBot-MD" },
+  yuki: { url: "https://api.yuki-wabot.my.id", key: "alefox" },
   vreden: { url: "https://api.vreden.web.id", key: null },
   ootaizumi: { url: "https://api.ootaizumi.web.id", key: null },
   delirius: { url: "https://api.delirius.store", key: null },

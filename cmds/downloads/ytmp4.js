@@ -1,5 +1,13 @@
 import yts from 'yt-search'
 import fetch from 'node-fetch'
+import fs from 'fs'
+import { tmpdir } from 'os'
+import path from 'path'
+import Crypto from 'crypto'
+import ff from 'fluent-ffmpeg'
+import ffmpegPath from 'ffmpeg-static'
+
+ff.setFfmpegPath(ffmpegPath)
 
 const cmd = {
   command: ['play2', 'mp4', 'ytmp4', 'ytvideo', 'playvideo'],
@@ -48,9 +56,25 @@ const cmd = {
 
       const file_name = sanitizeFileName(title) + '.mp4'
 
-      const size_bytes = await getRemoteFileSize(download.url).catch(() => null)
-      const size_text = size_bytes ? formatBytes(size_bytes) : 'Desconocido'
-      const send_as_document = size_bytes ? size_bytes > max_video_size : false
+      const video_buffer_raw = await getRemoteFileBuffer(download.url).catch(() => null)
+
+      if (!video_buffer_raw?.length) {
+        return msg.reply('《✧》No se pudo descargar el *video*, intenta más tarde.')
+      }
+
+      let video_buffer = video_buffer_raw
+      let remux_error = null
+
+      try {
+        video_buffer = await remuxForWhatsapp(video_buffer_raw)
+      } catch (remux_err) {
+        remux_error = remux_err?.message || String(remux_err)
+        console.error('[ytmp4] Falló el remux con ffmpeg:', remux_error)
+      }
+
+      const size_bytes = video_buffer.length
+      const size_text = formatBytes(size_bytes)
+      const send_as_document = size_bytes > max_video_size
 
       const info_message = `➩ Descargando › *${title}*
 
@@ -71,11 +95,11 @@ const cmd = {
 
       const caption = `乂 *Video descargado*
 
-> ❒ Tamaño › *${size_text}*`
+> ❒ Tamaño › *${size_text}*${remux_error ? `\n> ⚠️ Remux falló: ${remux_error.slice(0, 150)}` : ''}`
 
       if (send_as_document) {
         await sock.sendMessage(msg.chat, {
-          document: { url: download.url },
+          document: video_buffer,
           mimetype: 'video/mp4',
           fileName: file_name,
           caption
@@ -85,7 +109,7 @@ const cmd = {
 
       try {
         await sock.sendMessage(msg.chat, {
-          video: { url: download.url },
+          video: video_buffer,
           mimetype: 'video/mp4',
           fileName: file_name,
           caption,
@@ -93,7 +117,7 @@ const cmd = {
         }, { quoted: msg })
       } catch {
         await sock.sendMessage(msg.chat, {
-          document: { url: download.url },
+          document: video_buffer,
           mimetype: 'video/mp4',
           fileName: file_name,
           caption
@@ -155,10 +179,10 @@ async function getVideoInfo(input, video_id) {
 
 async function getVideoFromApi(url) {
   const { url: api_base, key: api_key } = global.APIs.evogb
-  const api_url = `${api_base}/dl/youtubeplay-private?key=${api_key}&query=${encodeURIComponent(url)}&type=video&quality=auto`
+  const api_url = `${api_base}/dl/ytmp4?key=${api_key}&url=${encodeURIComponent(url)}&quality=auto`
 
   const res = await fetch(api_url, {
-    headers: { accept: 'application/json' }
+    headers: { accept: 'application/json', 'x-api-key': api_key }
   })
 
   const text = await res.text()
@@ -179,51 +203,55 @@ async function getVideoFromApi(url) {
     throw new Error(data?.message || 'La API no devolvió un resultado válido.')
   }
 
-  if (!data?.data?.download_url) {
+  if (!data?.data?.dl) {
     throw new Error('La API no devolvió la URL de descarga.')
   }
 
   return {
-    url: data.data.download_url,
-    name: data.data.filename || 'video.mp4'
+    url: data.data.dl,
+    name: data.data.title ? `${data.data.title}.mp4` : 'video.mp4'
   }
 }
 
-async function getRemoteFileSize(url) {
-  const head = await fetch(url, {
-    method: 'HEAD',
-    headers: {
-      'user-agent': 'Mozilla/5.0'
-    }
-  }).catch(() => null)
+async function remuxForWhatsapp(buffer) {
+  const tmp_in = path.join(tmpdir(), `${Crypto.randomBytes(6).readUIntLE(0, 6).toString(36)}.mp4`)
+  const tmp_out = path.join(tmpdir(), `${Crypto.randomBytes(6).readUIntLE(0, 6).toString(36)}.mp4`)
 
-  let length = head?.headers?.get('content-length')
-  let bytes = Number(length)
+  fs.writeFileSync(tmp_in, buffer)
 
-  if (Number.isFinite(bytes) && bytes > 0) {
-    return bytes
+  try {
+    await new Promise((resolve, reject) => {
+      ff(tmp_in)
+        .videoCodec('libx264')
+        .audioCodec('aac')
+        .outputOptions([
+          '-profile:v', 'baseline',
+          '-level', '3.0',
+          '-pix_fmt', 'yuv420p',
+          '-preset', 'veryfast',
+          '-movflags', '+faststart'
+        ])
+        .toFormat('mp4')
+        .on('error', reject)
+        .on('end', resolve)
+        .save(tmp_out)
+    })
+
+    return fs.readFileSync(tmp_out)
+  } finally {
+    if (fs.existsSync(tmp_in)) fs.unlinkSync(tmp_in)
+    if (fs.existsSync(tmp_out)) fs.unlinkSync(tmp_out)
   }
+}
 
-  const range = await fetch(url, {
-    method: 'GET',
-    headers: {
-      range: 'bytes=0-0',
-      'user-agent': 'Mozilla/5.0'
-    }
-  }).catch(() => null)
+async function getRemoteFileBuffer(url) {
+  const res = await fetch(url, {
+    headers: { 'user-agent': 'Mozilla/5.0' }
+  })
 
-  const content_range = range?.headers?.get('content-range')
-  const match = content_range?.match(/\/(\d+)$/)
+  if (!res.ok) throw new Error(`No se pudo descargar el video: HTTP ${res.status}`)
 
-  if (match?.[1]) {
-    bytes = Number(match[1])
-    if (Number.isFinite(bytes) && bytes > 0) return bytes
-  }
-
-  length = range?.headers?.get('content-length')
-  bytes = Number(length)
-
-  return Number.isFinite(bytes) && bytes > 0 ? bytes : null
+  return Buffer.from(await res.arrayBuffer())
 }
 
 async function getThumbnail(url) {

@@ -119,7 +119,7 @@ async function getVideoInfo(input, video_id) {
 
 async function getAudioFromApi(url) {
   const { url: api_base, key: api_key } = global.APIs.evogb
-  const api_url = `${api_base}/dl/youtubeplay-private?key=${api_key}&query=${encodeURIComponent(url)}&type=audio`
+  const api_url = `${api_base}/dl/ytmp3?key=${api_key}&url=${encodeURIComponent(url)}`
 
   const res = await fetch(api_url, {
     headers: { 'accept': 'application/json' }
@@ -129,17 +129,17 @@ async function getAudioFromApi(url) {
 
   const json = await res.json()
 
-  if (!json?.status || !json?.data?.download_url) {
+  if (!json?.status || !json?.data?.dl) {
     throw new Error('No se encontró el enlace de descarga en la API.')
   }
 
-  const audio_res = await fetch(json.data.download_url)
+  const audio_res = await fetch(json.data.dl)
   if (!audio_res.ok) throw new Error(`No se pudo descargar el audio: HTTP ${audio_res.status}`)
 
   const buffer = await audio_res.buffer()
 
   return {
     buffer,
-    name: json.data.filename || 'audio.mp3'
+    name: json.data.title ? `${json.data.title}.mp3` : 'audio.mp3'
   }
 }
