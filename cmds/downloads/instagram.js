@@ -23,6 +23,7 @@ export default {
         throw new Error('Contenido no soportado.')
       }
     } catch (e) {
+      console.error(`[instagram] error en el comando (${usedPrefix + command}):`, e)
       await msg.reply(`> An unexpected error occurred while executing command *${usedPrefix + command}*. Please try again or contact support if the issue persists.\n> [Error: *${e.message}*]`)
     }
   }
@@ -112,7 +113,7 @@ async function getInstagramMedia(url) {
       const res = await fetch(endpoint).then(r => r.json())
       const result = extractor(res)
       if (result) return result
-      console.log(`[instagram] ${name}: respuesta sin contenido utilizable`)
+      console.log(`[instagram] ${name}: respuesta sin contenido utilizable →`, JSON.stringify(res).slice(0, 300))
     } catch (error) {
       console.log(`[instagram] ${name} falló: ${error.message}`)
       continue
