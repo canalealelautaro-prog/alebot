@@ -30,40 +30,91 @@ export default {
 
 async function getInstagramMedia(url) {
   const apis = [
-    { endpoint: `${global.APIs.evogb.url}/dl/instagram?url=${encodeURIComponent(url)}&key=${global.APIs.evogb.key}`, extractor: (res) => {
-        if (!res.status || !res.data?.download_url) return null
-        const isImage = /\.(jpe?g|png|webp)$/i.test(res.data.filename || '')
-        return { type: isImage ? 'image' : 'video', title: null, caption: null, resolution: null, format: isImage ? 'jpg' : 'mp4', url: res.data.download_url, thumbnail: null }
+    {
+      name: 'evogb',
+      endpoint: `${global.APIs.evogb.url}/dl/instagram?url=${encodeURIComponent(url)}&key=${global.APIs.evogb.key}`,
+      extractor: (res) => {
+        // Evo devuelve data como lista: [{ type, thumbnail, url }]
+        if (!res.status || !Array.isArray(res.data) || !res.data.length) return null
+        const media = res.data[0]
+        if (!media?.url) return null
+        const isVideo = media.type === 'video'
+        return {
+          type: isVideo ? 'video' : 'image',
+          title: null,
+          caption: null,
+          resolution: null,
+          format: isVideo ? 'mp4' : 'jpg',
+          url: media.url,
+          thumbnail: media.thumbnail || null
+        }
       }
     },
-    { endpoint: `${global.APIs.ootaizumi.url}/downloader/instagram/v1?url=${encodeURIComponent(url)}`, extractor: (res) => {
+    {
+      name: 'ootaizumi',
+      endpoint: `${global.APIs.ootaizumi.url}/downloader/instagram/v1?url=${encodeURIComponent(url)}`,
+      extractor: (res) => {
         if (!res.status || !res.result?.media?.length) return null
         const media = res.result.media[0]
         if (!media?.url) return null
-        return { type: media.isVideo ? 'video' : 'image', title: res.result.metadata?.author || null, caption: null, like: res.result.metadata?.like === -1 ? null : res.result.metadata?.like, views: res.result.metadata?.views || null, duration: res.result.metadata?.duration ? `${Math.round(res.result.metadata.duration)}s` : null, resolution: null, format: media.isVideo ? 'mp4' : 'jpg', url: media.url, thumbnail: res.result.ppc || null }
+        return {
+          type: media.isVideo ? 'video' : 'image',
+          title: res.result.metadata?.author || null,
+          caption: null,
+          like: res.result.metadata?.like === -1 ? null : res.result.metadata?.like,
+          views: res.result.metadata?.views || null,
+          duration: res.result.metadata?.duration ? `${Math.round(res.result.metadata.duration)}s` : null,
+          resolution: null,
+          format: media.isVideo ? 'mp4' : 'jpg',
+          url: media.url,
+          thumbnail: res.result.ppc || null
+        }
       }
     },
-    { endpoint: `${global.APIs.delirius.url}/download/instagram?url=${encodeURIComponent(url)}`, extractor: (res) => {
+    {
+      name: 'delirius',
+      endpoint: `${global.APIs.delirius.url}/download/instagram?url=${encodeURIComponent(url)}`,
+      extractor: (res) => {
         if (!res.status || !res.data || !res.data.length) return null
         const media = res.data[0]
         if (!media?.url) return null
-        return { type: media.type || (media.url.includes('.mp4') ? 'video' : 'image'), title: null, caption: null, resolution: null, format: media.type === 'video' ? 'mp4' : 'jpg', url: media.url }
+        return {
+          type: media.type || (media.url.includes('.mp4') ? 'video' : 'image'),
+          title: null,
+          caption: null,
+          resolution: null,
+          format: media.type === 'video' ? 'mp4' : 'jpg',
+          url: media.url
+        }
       }
     },
-    { endpoint: `${global.APIs.zenzxz.url}/download/instagram?url=${encodeURIComponent(url)}`, extractor: (res) => {
+    {
+      name: 'zenzxz',
+      endpoint: `${global.APIs.zenzxz.url}/download/instagram?url=${encodeURIComponent(url)}`,
+      extractor: (res) => {
         if (!res.status || !res.result) return null
         if (!res.result.url) return null
-        return { type: res.result.is_video ? 'video' : 'image', title: res.result.username || null, caption: res.result.caption || null, resolution: null, format: res.result.is_video ? 'mp4' : 'jpg', url: res.result.url, thumbnail: res.result.thumbnail || null }
+        return {
+          type: res.result.is_video ? 'video' : 'image',
+          title: res.result.username || null,
+          caption: res.result.caption || null,
+          resolution: null,
+          format: res.result.is_video ? 'mp4' : 'jpg',
+          url: res.result.url,
+          thumbnail: res.result.thumbnail || null
+        }
       }
     }
   ]
 
-  for (const { endpoint, extractor } of apis) {
+  for (const { name, endpoint, extractor } of apis) {
     try {
       const res = await fetch(endpoint).then(r => r.json())
       const result = extractor(res)
       if (result) return result
+      console.log(`[instagram] ${name}: respuesta sin contenido utilizable`)
     } catch (error) {
+      console.log(`[instagram] ${name} falló: ${error.message}`)
       continue
     }
     await new Promise(r => setTimeout(r, 500))
