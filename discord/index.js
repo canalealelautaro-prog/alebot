@@ -5,10 +5,14 @@ import chalk from 'chalk';
 import db from '#db';
 
 // Categorías de cmds/ que se exponen en Discord.
-const CATEGORIES = ['downloads', 'anime'];
+const CATEGORIES = ['downloads', 'anime', 'nsfw'];
 // Plugins cuyo alias cambia el resultado (el alias se usa como endpoint): se registran todos.
 const ALL_ALIASES = new Set(['anime/waifu']);
-const ACTIONS_PLUGIN = 'anime/shares';
+// Plugins de reacciones: se agrupan en un solo comando con autocompletado.
+const ACTION_PLUGINS = {
+  'anime/shares': { name: 'accion', description: 'Reacciones de anime (abrazar, besar, etc.)', nsfw: false },
+  'nsfw/reactions': { name: 'nsfw', description: 'Reacciones NSFW (solo canales +18)', nsfw: true },
+};
 const DEFAULT_LIMIT = 10 * 1024 * 1024;
 
 const log = (m) => console.log(chalk.magentaBright('[ Discord ]'), m);
@@ -39,8 +43,11 @@ async function toBuffer(src, limit) {
 
 // Construye un `sock` y un `msg` falsos con la forma que esperan los comandos de WhatsApp,
 // pero que envían todo a la interacción de Discord.
-export function createContext({ send, limit, userId, userName, targetId, targetName, text }) {
-  const chat = 'discord';
+export function createContext({ send, limit, userId, userName, targetId, targetName, text, nsfw = false }) {
+  // Los comandos consultan db.getChat(chat).nsfw: usamos un chat aparte para NSFW
+  // para que los comandos normales (p. ej. /waifu) nunca devuelvan contenido +18.
+  const chat = nsfw ? 'discord-nsfw' : 'discord';
+  try { db.getChat(chat); db.setChat(chat, 'nsfw', nsfw ? 1 : 0); } catch {}
   const sender = `${userId}@discord`;
   const mentioned = targetId ? `${targetId}@discord` : null;
 
@@ -117,22 +124,25 @@ function buildCommands() {
     byPlugin.get(data.pluginKey).names.push(name);
   }
   for (const [key, { data, names }] of byPlugin) {
-    if (key === ACTIONS_PLUGIN) continue;
+    if (ACTION_PLUGINS[key]) continue;
     const list = ALL_ALIASES.has(key) ? names : [names[0]];
     for (const n of list) {
       if (!/^[\w-]{1,32}$/.test(n) || seen.has(n)) continue;
       seen.add(n);
       const b = new SlashCommandBuilder().setName(n).setDescription((data.description || n).slice(0, 100));
       b.addStringOption((o) => o.setName('texto').setDescription('Enlace o término de búsqueda'));
-      defs.push({ name: n, builder: b });
+      if (data.category === 'nsfw') b.setNSFW(true);
+      defs.push({ name: n, builder: b, nsfw: data.category === 'nsfw' });
     }
   }
-  const actions = byPlugin.get(ACTIONS_PLUGIN);
-  if (actions) {
-    const b = new SlashCommandBuilder().setName('accion').setDescription('Reacciones de anime (abrazar, besar, etc.)');
+  for (const [key, cfg] of Object.entries(ACTION_PLUGINS)) {
+    const actions = byPlugin.get(key);
+    if (!actions) continue;
+    const b = new SlashCommandBuilder().setName(cfg.name).setDescription(cfg.description);
     b.addStringOption((o) => o.setName('tipo').setDescription('Acción').setRequired(true).setAutocomplete(true));
     b.addUserOption((o) => o.setName('usuario').setDescription('A quién va dirigida'));
-    defs.push({ name: 'accion', builder: b, actions: actions.names });
+    if (cfg.nsfw) b.setNSFW(true);
+    defs.push({ name: cfg.name, builder: b, actions: actions.names.filter((n) => /^[a-z0-9]+$/.test(n)), nsfw: cfg.nsfw });
   }
   return defs;
 }
@@ -151,7 +161,6 @@ export default async function startDiscord() {
   }
   const defs = buildCommands();
   const byName = new Map(defs.map((d) => [d.name, d]));
-  const actionNames = (byName.get('accion')?.actions || []).filter((n) => /^[a-z0-9]+$/.test(n));
 
   const rest = new REST({ version: '10' }).setToken(token);
   const route = process.env.DISCORD_GUILD_ID
@@ -165,16 +174,17 @@ export default async function startDiscord() {
 
   client.on('interactionCreate', async (i) => {
     try {
-      if (i.isAutocomplete() && i.commandName === 'accion') {
+      if (i.isAutocomplete() && byName.get(i.commandName)?.actions) {
         const q = i.options.getFocused().toLowerCase();
-        return i.respond(actionNames.filter((n) => n.includes(q)).slice(0, 25).map((n) => ({ name: n, value: n })));
+        return i.respond(byName.get(i.commandName).actions.filter((n) => n.includes(q)).slice(0, 25).map((n) => ({ name: n, value: n })));
       }
-      if (!i.isChatInputCommand() || !byName.has(i.commandName)) return;
+      const def = byName.get(i.commandName);
+      if (!i.isChatInputCommand() || !def) return;
 
       let command = i.commandName;
       let args = [];
       let target = null;
-      if (command === 'accion') {
+      if (byName.get(command).actions) {
         command = i.options.getString('tipo', true).toLowerCase();
         target = i.options.getUser('usuario');
       } else {
@@ -199,6 +209,7 @@ export default async function startDiscord() {
         targetId: target?.id,
         targetName: target?.globalName || target?.username,
         text: `/${command} ${text}`.trim(),
+        nsfw: Boolean(def.nsfw),
       });
       await cmdData.run({
         msg, sock, args, text, command, usedPrefix: '/',
