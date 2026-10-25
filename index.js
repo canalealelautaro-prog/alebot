@@ -12,6 +12,7 @@ import readlineSync from "readline-sync";
 import { smsg, getCachedMeta, setCachedMeta } from "#serialize";
 import cmdsLoader from '#system/cmdsLoader';
 import "#system/database";
+import startDiscord from './discord/index.js';
 import { startSubBot } from './cmds/socket/subs.js';
 import db from '#db';
 
@@ -321,5 +322,6 @@ cleanCache();
   await initDB();
   await cmdsLoader();
   loadBots();
+  startDiscord().catch((e) => console.error('[ Discord ] No se pudo iniciar:', e.message));
   await startBot();
 })();
