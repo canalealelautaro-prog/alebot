@@ -13,6 +13,8 @@ const ACTION_PLUGINS = {
   'anime/shares': { name: 'accion', description: 'Reacciones de anime (abrazar, besar, etc.)', nsfw: false },
   'nsfw/reactions': { name: 'nsfw', description: 'Reacciones NSFW (solo canales +18)', nsfw: true },
 };
+// Plugins sueltos de otras categorías que también se exponen en Discord.
+const EXTRA_PLUGINS = new Set(['utils/chatgpt']);
 const DEFAULT_LIMIT = 10 * 1024 * 1024;
 
 const log = (m) => console.log(chalk.magentaBright('[ Discord ]'), m);
@@ -77,6 +79,10 @@ export function createContext({ send, limit, userId, userName, targetId, targetN
 
   const sock = new Proxy({
     sendMessage,
+    user: { id: 'discord:0@s.whatsapp.net' },
+    sendCodeMessage: async (_jid, filename, code) => send({
+      files: [new AttachmentBuilder(Buffer.from(code, 'utf8'), { name: String(filename).replace(/[^\w.-]+/g, '_') })],
+    }),
     reply: async (_jid, t) => send({ content: toDiscordText(t) }),
     sendFile: async (_jid, buf, name, caption) => {
       const isVideo = /\.(mp4|mov|webm)$/i.test(name || '');
@@ -119,7 +125,7 @@ function buildCommands() {
   const seen = new Set();
   const byPlugin = new Map();
   for (const [name, data] of global.comandos) {
-    if (!CATEGORIES.includes(data.category) || data.customPrefix) continue;
+    if (!(CATEGORIES.includes(data.category) || EXTRA_PLUGINS.has(data.pluginKey)) || data.customPrefix) continue;
     if (!byPlugin.has(data.pluginKey)) byPlugin.set(data.pluginKey, { data, names: [] });
     byPlugin.get(data.pluginKey).names.push(name);
   }
@@ -130,7 +136,7 @@ function buildCommands() {
       if (!/^[\w-]{1,32}$/.test(n) || seen.has(n)) continue;
       seen.add(n);
       const b = new SlashCommandBuilder().setName(n).setDescription((data.description || n).slice(0, 100));
-      b.addStringOption((o) => o.setName('texto').setDescription('Enlace o término de búsqueda'));
+      b.addStringOption((o) => o.setName('texto').setDescription(EXTRA_PLUGINS.has(key) ? 'Tu pregunta o petición' : 'Enlace o término de búsqueda').setRequired(EXTRA_PLUGINS.has(key)));
       if (data.category === 'nsfw') b.setNSFW(true);
       defs.push({ name: n, builder: b, nsfw: data.category === 'nsfw' });
     }
