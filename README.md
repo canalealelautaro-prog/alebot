@@ -234,3 +234,11 @@ cd && cd YukiBot-MD && rm -rf Sessions/Owner && npm start
 
 ### 💐 Propietario
 [![King](https://github.com/iamDestroy.png?size=120)](https://github.com/iamDestroy)
+
+## Discord
+
+Además de WhatsApp, el servicio puede correr un bot de Discord con comandos slash para las categorías `downloads` y `anime` (`discord/index.js`). Se activa definiendo estas variables:
+
+- `DISCORD_TOKEN`: token del bot.
+- `DISCORD_CLIENT_ID`: Application ID.
+- `DISCORD_GUILD_ID` (opcional): registra los comandos solo en ese servidor (aparecen al instante; los globales pueden tardar).
