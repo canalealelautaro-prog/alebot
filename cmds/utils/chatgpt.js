@@ -5,6 +5,9 @@ import db from '#db';
 
 const langs = { typescript: 'ts', javascript: 'js', python: 'py', html: 'html', css: 'css', java: 'java', cpp: 'cpp', c: 'c', json: 'json', bash: 'sh', sql: 'sql', rust: 'rs', go: 'go', php: 'php', ruby: 'rb' };
 
+// sessionId de evogb por usuario, para mantener el contexto de la conversación
+const sessions = new Map();
+
 function detectLanguage(query, response) {
   const q = query.toLowerCase();
   const r = response;
@@ -84,12 +87,35 @@ export default {
           if (uploadUrl) imageBuffer = uploadUrl;
         }
       }
-      try {
-        const requestBody = { content: text, user: msg.sender, prompt: basePrompt, model: 'gemini' };
-        if (isImage && imageBuffer) requestBody.imageBuffer = imageBuffer;
-        const res = await axios.post('https://ai.siputzx.my.id', requestBody);
-        if (res.data?.result) responseText = res.data.result;
-      } catch {}
+
+      // 1) evogb (solo texto)
+      if (!isImage) {
+        try {
+          const sid = sessions.get(msg.sender);
+          const url = `${global.APIs.evogb.url}/ai/gpt4-session?key=${global.APIs.evogb.key}`
+            + `&text=${encodeURIComponent(text)}`
+            + `&prompt=${encodeURIComponent(basePrompt)}`
+            + (sid ? `&sessionId=${sid}` : '');
+          const res = await fetch(url);
+          const json = await res.json();
+          if (json?.status && json?.result) {
+            responseText = json.result;
+            if (json.sessionId) sessions.set(msg.sender, json.sessionId);
+          }
+        } catch {}
+      }
+
+      // 2) siputzx (también maneja imágenes)
+      if (!responseText) {
+        try {
+          const requestBody = { content: text, user: msg.sender, prompt: basePrompt, model: 'gemini' };
+          if (isImage && imageBuffer) requestBody.imageBuffer = imageBuffer;
+          const res = await axios.post('https://ai.siputzx.my.id', requestBody);
+          if (res.data?.result) responseText = res.data.result;
+        } catch {}
+      }
+
+      // 3) yuki
       if (!responseText) {
         try {
           const res = await fetch(`${global.APIs.yuki.url}/ai/gptprompt?text=${encodeURIComponent(text)}&prompt=${encodeURIComponent(basePrompt)}&key=${global.APIs.yuki.key}`);
@@ -99,6 +125,8 @@ export default {
           else if (json?.results) responseText = json.results;
         } catch {}
       }
+
+      // 4) delirius
       if (!responseText) {
         try {
           const res = await fetch(`${global.APIs.delirius.url}/ia/gptprompt?text=${encodeURIComponent(text)}&prompt=${encodeURIComponent(basePrompt)}`);
@@ -106,6 +134,7 @@ export default {
           if (json?.status && json?.data && json.data !== 'Error: No response') responseText = json.data;
         } catch {}
       }
+
       if (!responseText) {
         return sock.reply(msg.chat, '《✧》 No se pudo obtener una *respuesta* válida', msg);
       }
