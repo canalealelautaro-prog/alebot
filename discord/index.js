@@ -1,5 +1,5 @@
 import {
-  Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, AttachmentBuilder, MessageFlags,
+  Client, GatewayIntentBits, ApplicationIntegrationType, InteractionContextType, REST, Routes, SlashCommandBuilder, AttachmentBuilder, MessageFlags,
 } from 'discord.js';
 import chalk from 'chalk';
 import db from '#db';
@@ -137,6 +137,11 @@ function buildCommands() {
   return defs;
 }
 
+// Instalable en servidores y en cuentas de usuario; usable en servidores, DM con el bot y cualquier DM/grupo.
+const withUserInstall = (b) => b
+  .setIntegrationTypes(ApplicationIntegrationType.GuildInstall, ApplicationIntegrationType.UserInstall)
+  .setContexts(InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel);
+
 export default async function startDiscord() {
   const token = process.env.DISCORD_TOKEN;
   const clientId = process.env.DISCORD_CLIENT_ID;
@@ -152,7 +157,7 @@ export default async function startDiscord() {
   const route = process.env.DISCORD_GUILD_ID
     ? Routes.applicationGuildCommands(clientId, process.env.DISCORD_GUILD_ID)
     : Routes.applicationCommands(clientId);
-  await rest.put(route, { body: defs.map((d) => d.builder.toJSON()) });
+  await rest.put(route, { body: defs.map((d) => withUserInstall(d.builder).toJSON()) });
   log(`${defs.length} comandos slash registrados.`);
 
   const client = new Client({ intents: [GatewayIntentBits.Guilds] });
