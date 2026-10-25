@@ -66,6 +66,7 @@ export default {
     if (!text) {
       return msg.reply(`《✧》 Escriba una *petición* para que *ChatGPT* le responda.`);
     }
+    const isDiscord = String(msg.sender).endsWith('@discord');
     const botId = sock.user.id.split(':')[0] + '@s.whatsapp.net';
     const settings = db.getSettings(botId);
     const user = db.getUser(msg.sender);
@@ -73,7 +74,8 @@ export default {
     const botname = settings.botname || 'Bot';
     const basePrompt = `Tu nombre es ${botname} y parece haber sido creada por ⁱᵃᵐ|𝔇ĕ𝐬†𝓻⊙γ𒆜. Tu versión actual es @latest, Tú usas el idioma Español. Llamarás a las personas por su nombre ${username}, te gusta ser divertida, y te encanta aprender. Lo más importante es que debes ser amigable con la persona con la que estás hablando. ${username}`;
     try {
-      const { key } = await sock.sendMessage(msg.chat, { text: `ꕥ *ChatGPT* está procesando tu respuesta...` }, { quoted: msg });
+      // En Discord ya hay un "pensando..." de la interacción: no se envía ni se edita mensaje.
+      const key = isDiscord ? null : (await sock.sendMessage(msg.chat, { text: `ꕥ *ChatGPT* está procesando tu respuesta...` }, { quoted: msg })).key;
       await msg.react('🕒');
       let responseText = null;
       let imageBuffer = null;
@@ -144,10 +146,11 @@ export default {
         const ext = langs[lang] ?? 'txt';
         const filename = `ꕥ respuesta.${ext}`;
         const tableData = { title: '✎ ChatGPT', headers: ['Campo', 'Valor'], rows: [ ['Lenguaje', lang], ['Líneas', String(clean.split('\n').length)], ['Caracteres', String(clean.length)], ], };
-        await sock.sendMessage(msg.chat, { text: `ꕥ *ChatGPT* · respuesta en *${lang}*`, edit: key });
+        await sock.sendMessage(msg.chat, key ? { text: `ꕥ *ChatGPT* · respuesta en *${lang}*`, edit: key } : { text: `ꕥ *ChatGPT* · respuesta en *${lang}*` });
         await sock.sendCodeMessage(msg.chat, filename, clean, msg, tableData);
       } else {
-        await sock.sendMessage(msg.chat, { text: clean, edit: key });
+        if (isDiscord && clean.length > 1900) await sock.sendCodeMessage(msg.chat, 'respuesta.txt', clean);
+        else await sock.sendMessage(msg.chat, key ? { text: clean, edit: key } : { text: clean });
       }
       await msg.react('✔️');
     } catch (e) {
