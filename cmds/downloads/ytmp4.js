@@ -12,7 +12,7 @@ ff.setFfmpegPath(ffmpegPath)
 const cmd = {
   command: ['play2', 'mp4', 'ytmp4', 'ytvideo', 'playvideo'],
   category: 'downloads',
-  description: 'Descargar un vídeo de YouTube.',
+  description: 'Descargar un vídeo de YouTube. Calidad opcional al final (ej: 720p); por defecto la más alta.',
 
   run: async ({ msg, sock, args, usedPrefix, command }) => {
     try {
@@ -20,7 +20,12 @@ const cmd = {
         return msg.reply('《✧》Por favor, menciona el nombre o URL del video que deseas descargar')
       }
 
-      const input_text = args.join(' ').trim()
+      const { quality, rest } = parseQuality(args)
+      if (!rest.length) {
+        return msg.reply('《✧》Por favor, menciona el nombre o URL del video que deseas descargar')
+      }
+
+      const input_text = rest.join(' ').trim()
       const video_id = getVideoId(input_text)
       const query = video_id ? `https://youtu.be/${video_id}` : input_text
 
@@ -48,7 +53,7 @@ const cmd = {
         return msg.reply('《✧》No se encontró un video válido de YouTube.')
       }
 
-      const download = await getVideoFromApi(url)
+      const download = await getVideoFromApi(url, quality)
 
       if (!download?.url) {
         return msg.reply('《✧》No se pudo descargar el *video*, intenta más tarde.')
@@ -82,6 +87,7 @@ const cmd = {
 > ⴵ Duración › *${duration}*
 > ❀ Vistas › *${views}*
 > ❒ Tamaño › *${size_text}*
+> ❒ Calidad › *${download.quality || 'Desconocida'}*
 > ❒ Enlace › *${url}*`
 
       if (thumbnail) {
@@ -177,9 +183,25 @@ async function getVideoInfo(input, video_id) {
   return search.videos?.[0] || search.all?.find(v => v.type === 'video') || null
 }
 
-async function getVideoFromApi(url) {
+const QUALITIES = [2160, 1440, 1080, 720, 480, 360, 240, 144]
+const DEFAULT_MAX_QUALITY = 1080
+
+// Detecta un último argumento de calidad (720, 720p, 1080p, max, auto...). Sin él: la más alta disponible.
+function parseQuality(args = []) {
+  const list = [...args]
+  const last = String(list[list.length - 1] || '').toLowerCase()
+  const m = last.match(/^(\d{3,4})p?$/)
+  if (m && QUALITIES.includes(Number(m[1]))) {
+    list.pop()
+    return { quality: Number(m[1]), rest: list }
+  }
+  if (['auto', 'max', 'maxima', 'máxima', 'best'].includes(last) && list.length > 1) list.pop()
+  return { quality: null, rest: list }
+}
+
+async function requestApi(url, quality) {
   const { url: api_base, key: api_key } = global.APIs.evogb
-  const api_url = `${api_base}/dl/ytmp4?key=${api_key}&url=${encodeURIComponent(url)}&quality=auto`
+  const api_url = `${api_base}/dl/ytmp4?key=${api_key}&url=${encodeURIComponent(url)}&quality=${quality}`
 
   const res = await fetch(api_url, {
     headers: { accept: 'application/json', 'x-api-key': api_key }
@@ -209,8 +231,32 @@ async function getVideoFromApi(url) {
 
   return {
     url: data.data.dl,
-    name: data.data.title ? `${data.data.title}.mp4` : 'video.mp4'
+    name: data.data.title ? `${data.data.title}.mp4` : 'video.mp4',
+    quality: data.data.quality || null,
+    height: parseInt(data.data.quality) || 0
   }
+}
+
+// La API devuelve 360p cuando la calidad pedida no existe ("auto" también), así que se baja
+// por la escalera de calidades hasta que la devuelta coincida con la pedida.
+async function getVideoFromApi(url, quality = null) {
+  const start = quality || DEFAULT_MAX_QUALITY
+  const ladder = quality ? [quality] : QUALITIES.filter(q => q <= start)
+  let best = null
+  let last_error = null
+
+  for (const q of ladder) {
+    try {
+      const result = await requestApi(url, q)
+      if (!best || result.height > best.height) best = result
+      if (result.height === q) return result
+    } catch (e) {
+      last_error = e
+    }
+  }
+
+  if (best) return best
+  throw last_error || new Error('La API no devolvió un resultado válido.')
 }
 
 async function remuxForWhatsapp(buffer) {

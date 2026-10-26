@@ -120,6 +120,8 @@ export function createContext({ send, limit, userId, userName, targetId, targetN
   return { sock, msg };
 }
 
+const YT_VIDEO_PLUGIN = 'downloads/ytmp4';
+
 function buildCommands() {
   const defs = [];
   const seen = new Set();
@@ -137,6 +139,10 @@ function buildCommands() {
       seen.add(n);
       const b = new SlashCommandBuilder().setName(n).setDescription((data.description || n).slice(0, 100));
       b.addStringOption((o) => o.setName('texto').setDescription(EXTRA_PLUGINS.has(key) ? 'Tu pregunta o petición' : 'Enlace o término de búsqueda').setRequired(EXTRA_PLUGINS.has(key)));
+      if (key === YT_VIDEO_PLUGIN) {
+        b.addStringOption((o) => o.setName('calidad').setDescription('Calidad del vídeo (por defecto la más alta)')
+          .addChoices(...['1080p', '720p', '480p', '360p'].map((v) => ({ name: v, value: v }))));
+      }
       if (data.category === 'nsfw') b.setNSFW(true);
       defs.push({ name: n, builder: b, nsfw: data.category === 'nsfw' });
     }
@@ -195,6 +201,8 @@ export default async function startDiscord() {
         target = i.options.getUser('usuario');
       } else {
         args = (i.options.getString('texto') || '').split(/\s+/).filter(Boolean);
+        const calidad = i.options.getString('calidad');
+        if (calidad) args.push(calidad);
       }
       const cmdData = global.comandos.get(command);
       if (!cmdData) return i.reply({ content: 'Comando no encontrado.', flags: MessageFlags.Ephemeral });
