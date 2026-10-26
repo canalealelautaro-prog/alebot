@@ -14,7 +14,7 @@ const ACTION_PLUGINS = {
   'nsfw/reactions': { name: 'nsfw', description: 'Reacciones NSFW (solo canales +18)', nsfw: true },
 };
 // Plugins sueltos de otras categorías que también se exponen en Discord.
-const EXTRA_PLUGINS = new Set(['utils/chatgpt']);
+const EXTRA_PLUGINS = new Set(['utils/chatgpt', 'utils/gemini']);
 const DEFAULT_LIMIT = 10 * 1024 * 1024;
 
 const log = (m) => console.log(chalk.magentaBright('[ Discord ]'), m);
