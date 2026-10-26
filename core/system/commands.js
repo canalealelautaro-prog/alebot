@@ -259,6 +259,8 @@ utils: `╭┈ࠢ͜─ׄ֟፝͜─ׄ͜─ׄ͜╴𐔌 *UTILITIES* 𐦯╶͜─ׄ�
 > Invitar el bot a un grupo.
 ꕤ *$prefixia » $prefixchatgpt* + <query>
 > Realizar peticiones a chatgpt.
+ꕤ *$prefixgemini* + <query>
+> Hablar con Gemini 3.1 Pro.
 ꕤ *$prefixgetpic » $prefixpfp* + <mention>
 > Ver la foto de perfil de un usuario.
 ꕤ *$prefixtoimage » $prefixtoimg* + <cite / sticker>
