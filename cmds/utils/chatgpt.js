@@ -57,6 +57,10 @@ async function uploadToUguu(buffer, mimetype) {
   }
 }
 
+const CJK = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/;
+// Rechaza respuestas con caracteres chinos/japoneses si la pregunta no los tenía.
+const badLang = (q, r) => typeof r === 'string' && CJK.test(r) && !CJK.test(q);
+
 export default {
   command: ['ia', 'chatgpt'],
   category: 'utils',
@@ -72,7 +76,7 @@ export default {
     const user = db.getUser(msg.sender);
     const username = user?.name || 'usuario';
     const botname = settings.botname || 'Bot';
-    const basePrompt = `Tu nombre es ${botname} y parece haber sido creada por ⁱᵃᵐ|𝔇ĕ𝐬†𝓻⊙γ𒆜. Tu versión actual es @latest, Tú usas el idioma Español. Llamarás a las personas por su nombre ${username}, te gusta ser divertida, y te encanta aprender. Lo más importante es que debes ser amigable con la persona con la que estás hablando. ${username}`;
+    const basePrompt = `Tu nombre es ${botname} y parece haber sido creada por ⁱᵃᵐ|𝔇ĕ𝐬†𝓻⊙γ𒆜. Tu versión actual es @latest, Responde SIEMPRE en español, aunque la pregunta esté en otro idioma; nunca respondas en chino. Llamarás a las personas por su nombre ${username}, te gusta ser divertida, y te encanta aprender. Lo más importante es que debes ser amigable con la persona con la que estás hablando. ${username}`;
     try {
       // En Discord ya hay un "pensando..." de la interacción: no se envía ni se edita mensaje.
       const key = isDiscord ? null : (await sock.sendMessage(msg.chat, { text: `ꕥ *ChatGPT* está procesando tu respuesta...` }, { quoted: msg })).key;
@@ -100,7 +104,7 @@ export default {
             + (sid ? `&sessionId=${sid}` : '');
           const res = await fetch(url);
           const json = await res.json();
-          if (json?.status && json?.result) {
+          if (json?.status && json?.result && !badLang(text, json.result)) {
             responseText = json.result;
             if (json.sessionId) sessions.set(msg.sender, json.sessionId);
           }
@@ -113,7 +117,7 @@ export default {
           const requestBody = { content: text, user: msg.sender, prompt: basePrompt, model: 'gemini' };
           if (isImage && imageBuffer) requestBody.imageBuffer = imageBuffer;
           const res = await axios.post('https://ai.siputzx.my.id', requestBody);
-          if (res.data?.result) responseText = res.data.result;
+          if (res.data?.result && !badLang(text, res.data.result)) responseText = res.data.result;
         } catch {}
       }
 
@@ -128,6 +132,8 @@ export default {
         } catch {}
       }
 
+      if (badLang(text, responseText)) responseText = null;
+
       // 4) delirius
       if (!responseText) {
         try {
@@ -136,6 +142,8 @@ export default {
           if (json?.status && json?.data && json.data !== 'Error: No response') responseText = json.data;
         } catch {}
       }
+
+      if (badLang(text, responseText)) responseText = null;
 
       if (!responseText) {
         return sock.reply(msg.chat, '《✧》 No se pudo obtener una *respuesta* válida', msg);
