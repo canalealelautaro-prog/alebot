@@ -17,7 +17,9 @@ export default {
       const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' } });
       const type = res.headers.get('content-type') || '';
       if (res.ok && type.includes('json')) {
-        const json = await res.json();
+        const raw = await res.text();
+        let json = [];
+        try { json = raw.trim() ? JSON.parse(raw) : []; } catch { json = []; }
         const data = Array.isArray(json) ? json : json?.post || json?.data || [];
         const valid = data.map(i => i?.file_url || i?.sample_url || i?.preview_url).filter(u => typeof u === 'string' && /\.(jpe?g|png|gif|mp4)$/i.test(u));
         if (valid.length) {
