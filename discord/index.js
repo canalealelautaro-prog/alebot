@@ -121,6 +121,7 @@ export function createContext({ send, limit, userId, userName, targetId, targetN
 }
 
 const YT_VIDEO_PLUGIN = 'downloads/ytmp4';
+const R34_PLUGIN = 'nsfw/rule34';
 
 function buildCommands() {
   const defs = [];
@@ -138,7 +139,13 @@ function buildCommands() {
       if (!/^[\w-]{1,32}$/.test(n) || seen.has(n)) continue;
       seen.add(n);
       const b = new SlashCommandBuilder().setName(n).setDescription((data.description || n).slice(0, 100));
-      b.addStringOption((o) => o.setName('texto').setDescription(EXTRA_PLUGINS.has(key) ? 'Tu pregunta o petición' : 'Enlace o término de búsqueda').setRequired(EXTRA_PLUGINS.has(key)));
+      if (key === R34_PLUGIN) {
+        b.addStringOption((o) => o.setName('tag').setDescription('Tag a buscar').setRequired(true));
+        b.addStringOption((o) => o.setName('tipo').setDescription('Imagen o vídeo (por defecto imagen)')
+          .addChoices({ name: 'imagen', value: 'image' }, { name: 'vídeo', value: 'video' }));
+      } else {
+        b.addStringOption((o) => o.setName('texto').setDescription(EXTRA_PLUGINS.has(key) ? 'Tu pregunta o petición' : 'Enlace o término de búsqueda').setRequired(EXTRA_PLUGINS.has(key)));
+      }
       if (key === YT_VIDEO_PLUGIN) {
         b.addStringOption((o) => o.setName('calidad').setDescription('Calidad del vídeo (por defecto la más alta)')
           .addChoices(...['1080p', '720p', '480p', '360p'].map((v) => ({ name: v, value: v }))));
@@ -200,7 +207,10 @@ export default async function startDiscord() {
         command = i.options.getString('tipo', true).toLowerCase();
         target = i.options.getUser('usuario');
       } else {
-        args = (i.options.getString('texto') || '').split(/\s+/).filter(Boolean);
+        const tag = i.options.getString('tag');
+        args = tag
+          ? [tag.trim().split(/\s+/).join('_'), i.options.getString('tipo') || 'image']
+          : (i.options.getString('texto') || '').split(/\s+/).filter(Boolean);
         const calidad = i.options.getString('calidad');
         if (calidad) args.push(calidad);
       }
