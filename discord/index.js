@@ -3,6 +3,7 @@ import {
 } from 'discord.js';
 import chalk from 'chalk';
 import db from '#db';
+import { autorolesCommand, handleAutoroles } from './autoroles.js';
 
 // Categorías de cmds/ que se exponen en Discord.
 const CATEGORIES = ['downloads', 'anime', 'nsfw'];
@@ -185,7 +186,7 @@ export default async function startDiscord() {
   const route = process.env.DISCORD_GUILD_ID
     ? Routes.applicationGuildCommands(clientId, process.env.DISCORD_GUILD_ID)
     : Routes.applicationCommands(clientId);
-  await rest.put(route, { body: defs.map((d) => withUserInstall(d.builder).toJSON()) });
+  await rest.put(route, { body: [...defs.map((d) => withUserInstall(d.builder).toJSON()), autorolesCommand.toJSON()] });
   log(`${defs.length} comandos slash registrados.`);
 
   const client = new Client({ intents: [GatewayIntentBits.Guilds] });
@@ -193,6 +194,7 @@ export default async function startDiscord() {
 
   client.on('interactionCreate', async (i) => {
     try {
+      if (await handleAutoroles(i)) return;
       if (i.isAutocomplete() && byName.get(i.commandName)?.actions) {
         const q = i.options.getFocused().toLowerCase();
         return i.respond(byName.get(i.commandName).actions.filter((n) => n.includes(q)).slice(0, 25).map((n) => ({ name: n, value: n })));
