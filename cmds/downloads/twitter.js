@@ -30,6 +30,15 @@ export default {
 
 async function getTwitterMedia(url) {
   const apis = [
+    { endpoint: `${global.APIs.evogb.url}/dl/twitter?url=${encodeURIComponent(url)}&key=${global.APIs.evogb.key}`, extractor: (res) => {
+        if (!res?.status || !res.data?.result?.length) return null
+        const media = [...res.data.result]
+          .filter(x => typeof x.url === 'string' && x.url.startsWith('http'))
+          .sort((a, b) => (parseInt(b.quality) || 0) - (parseInt(a.quality) || 0))[0]
+        if (!media) return null
+        return { type: res.data.type || 'video', title: res.data.title || null, duration: res.data.duration || null, resolution: media.quality || null, url: media.url, thumbnail: res.data.thumbnail || null }
+      }
+    },
     { endpoint: `${global.APIs.delirius.url}/download/twitterdl?url=${encodeURIComponent(url)}`, extractor: (res) => {
         if (!res.found || !res.media?.length) return null
         return { type: res.type || 'video', title: res.info?.text || null, author: res.info?.user_name || res.info?.user_screen_name || null, date: res.info?.date || null, url: res.media[0]?.url || null, likes: res.info?.likes || null, comments: res.info?.replies || null, retweets: res.info?.retweets || null }
