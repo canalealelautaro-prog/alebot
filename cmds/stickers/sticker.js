@@ -46,6 +46,7 @@ export default {
         if (shapeArgs[arg]) effects.push({ type: 'shape', value: shapeArgs[arg] });
         else if (effectArgs[arg]) effects.push({ type: 'effect', value: effectArgs[arg] });
       }
+      const noSound = args.includes('-nosound');
       const extractAudio = async (inputPath) => {
         const audioPath = `./tmp/aud-${Date.now()}.ogg`;
         try {
@@ -96,7 +97,7 @@ export default {
         return gifPath;
       };
       const processWithFFmpeg = async (inputPath, isVideo = false, withSound = false) => {
-        const audioPath = withSound && !args.includes('-nosound') ? await extractAudio(inputPath) : null;
+        const audioPath = withSound && !noSound ? await extractAudio(inputPath) : null;
         const outputPath = `./tmp/sticker-${Date.now()}.webp`;
         const vf = buildFFmpegFilters(effects);
         let args = [];
