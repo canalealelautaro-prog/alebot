@@ -3,6 +3,7 @@ import path from 'path';
 import { spawn } from 'child_process';
 import fetch from 'node-fetch';
 import ffmpegPath from 'ffmpeg-static';
+import { generateWAMessageContent, generateWAMessageFromContent, prepareWAMessageMedia } from 'baileys';
 import exif from '#core/exif';
 import db from '#db';
 const { writeExif } = exif;
@@ -14,7 +15,7 @@ export default {
   run: async ({ msg, sock, args, usedPrefix, command, text }) => {
     try {
       if (args[0] === '-list') {
-        let helpText = `ꕥ Lista de Formas y Efectos Disponibles para *imagen*:\n\n✦ *Formas:*\n- -c : Crea un sticker circular\n- -t : Crea un sticker triangular\n- -s : Crea un sticker con forma de estrella\n- -r : Crea un sticker con esquinas redondeadas\n- -h : Crea un sticker hexagonal\n- -d : Crea un sticker con forma de diamante\n- -f : Crea un sticker con un marco\n- -b : Crea un sticker con un borde\n- -w : Crea un sticker con forma de onda\n- -m : Crea un sticker espejado\n- -o : Crea un sticker octogonal\n- -y : Crea un sticker pentagonal\n- -e : Crea un sticker elíptico\n- -z : Crea un sticker en forma de cruz\n- -v : Crea un sticker con forma de corazón\n- -x : Crea un sticker expandido (cover)\n- -i : Crea un sticker expandido (contain)\n\n✧ *Efectos:*\n- -blur : Aplica un efecto de desenfoque\n- -sepia : Aplica un efecto sepia\n- -sharpen : Aplica un efecto de nitidez\n- -brighten : Aumenta el brillo\n- -darken : Disminuye el brillo\n- -invert : Invierte los colores\n- -grayscale : Aplica escala de grises\n- -rotate90 : Rota la imagen 90 grados\n- -rotate180 : Rota la imagen 180 grados\n- -flip : Invierte la imagen horizontalmente\n- -flop : Invierte la imagen verticalmente\n- -normalice : Normaliza la imagen\n- -negate : Negatiza la imagen\n- -tint : Aplica un tinte de color a la imagen (rojo por defecto)\n\n> Ejemplo: *${usedPrefix + command} -c -blur Pack | Autor*`;
+        let helpText = `ꕥ Lista de Formas y Efectos Disponibles para *imagen*:\n\n✦ *Formas:*\n- -c : Crea un sticker circular\n- -t : Crea un sticker triangular\n- -s : Crea un sticker con forma de estrella\n- -r : Crea un sticker con esquinas redondeadas\n- -h : Crea un sticker hexagonal\n- -d : Crea un sticker con forma de diamante\n- -f : Crea un sticker con un marco\n- -b : Crea un sticker con un borde\n- -w : Crea un sticker con forma de onda\n- -m : Crea un sticker espejado\n- -o : Crea un sticker octogonal\n- -y : Crea un sticker pentagonal\n- -e : Crea un sticker elíptico\n- -z : Crea un sticker en forma de cruz\n- -v : Crea un sticker con forma de corazón\n- -x : Crea un sticker expandido (cover)\n- -i : Crea un sticker expandido (contain)\n\n✧ *Efectos:*\n- -blur : Aplica un efecto de desenfoque\n- -sepia : Aplica un efecto sepia\n- -sharpen : Aplica un efecto de nitidez\n- -brighten : Aumenta el brillo\n- -darken : Disminuye el brillo\n- -invert : Invierte los colores\n- -grayscale : Aplica escala de grises\n- -rotate90 : Rota la imagen 90 grados\n- -rotate180 : Rota la imagen 180 grados\n- -flip : Invierte la imagen horizontalmente\n- -flop : Invierte la imagen verticalmente\n- -normalice : Normaliza la imagen\n- -negate : Negatiza la imagen\n- -tint : Aplica un tinte de color a la imagen (rojo por defecto)\n- -nosound : En videos, no conserva el audio (por defecto el sticker suena, máx. 5 s)\n\n> Ejemplo: *${usedPrefix + command} -c -blur Pack | Autor*`;
         return sock.reply(msg.chat, helpText, msg);
       }      
       const quoted = msg.quoted || msg;
@@ -45,12 +46,40 @@ export default {
         if (shapeArgs[arg]) effects.push({ type: 'shape', value: shapeArgs[arg] });
         else if (effectArgs[arg]) effects.push({ type: 'effect', value: effectArgs[arg] });
       }
-      const sendWebpWithExif = async (webpBuffer) => {
+      const extractAudio = async (inputPath) => {
+        const audioPath = `./tmp/aud-${Date.now()}.ogg`;
+        try {
+          await new Promise((resolve, reject) => {
+            const p = spawn(ffmpegPath, ['-y', '-i', inputPath, '-vn', '-t', '5', '-ac', '1', '-c:a', 'libopus', '-b:a', '48k', audioPath], { stdio: ['ignore', 'pipe', 'pipe'] });
+            p.on('error', reject);
+            p.on('close', (code) => code === 0 ? resolve() : reject(new Error('no audio')));
+          });
+          return fs.existsSync(audioPath) && fs.statSync(audioPath).size > 0 ? audioPath : null;
+        } catch {
+          if (fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
+          return null;
+        }
+      };
+      const sendWebpWithExif = async (webpBuffer, audioPath = null) => {
         const media = { mimetype: 'webp', data: webpBuffer };
         const metadata = { packname: pack, author: author, categories: [''] };
         const stickerPath = await writeExif(media, metadata);
-        await sock.sendMessage(msg.chat, { sticker: { url: stickerPath } }, { quoted: msg });
-        fs.unlinkSync(stickerPath);
+        try {
+          if (audioPath) {
+            const upload = sock.waUploadToServer;
+            const content = await generateWAMessageContent({ sticker: { url: stickerPath } }, { upload });
+            const audio = await prepareWAMessageMedia({ audio: { url: audioPath }, mimetype: 'audio/ogg; codecs=opus' }, { upload });
+            audio.audioMessage.ptt = false;
+            content.stickerMessage.audioMessage = audio.audioMessage;
+            const full = generateWAMessageFromContent(msg.chat, content, { quoted: msg.fakeObj || msg, userJid: sock.user.id });
+            await sock.relayMessage(msg.chat, full.message, { messageId: full.key.id });
+          } else {
+            await sock.sendMessage(msg.chat, { sticker: { url: stickerPath } }, { quoted: msg });
+          }
+        } finally {
+          fs.unlinkSync(stickerPath);
+          if (audioPath && fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
+        }
       };
       const convertToGif = async (inputPath) => {
         const gifPath = `./tmp/conv-${Date.now()}.gif`;
@@ -66,7 +95,8 @@ export default {
         });
         return gifPath;
       };
-      const processWithFFmpeg = async (inputPath, isVideo = false) => {
+      const processWithFFmpeg = async (inputPath, isVideo = false, withSound = false) => {
+        const audioPath = withSound && !args.includes('-nosound') ? await extractAudio(inputPath) : null;
         const outputPath = `./tmp/sticker-${Date.now()}.webp`;
         const vf = buildFFmpegFilters(effects);
         let args = [];
@@ -87,7 +117,7 @@ export default {
         });
         const data = fs.readFileSync(outputPath);
         fs.unlinkSync(outputPath);
-        await sendWebpWithExif(data);
+        await sendWebpWithExif(data, audioPath);
       };
       const isAnimatedWebp = (buffer) => {
         if (!Buffer.isBuffer(buffer) || buffer.length < 32) return false;
@@ -130,7 +160,7 @@ export default {
         let buffer = await quoted.download();
         const inputPath = `./tmp/video-${Date.now()}.mp4`;
         fs.writeFileSync(inputPath, buffer);
-        await processWithFFmpeg(inputPath, true);
+        await processWithFFmpeg(inputPath, true, true);
         fs.unlinkSync(inputPath);
       } else if (urlArg) {
         const url = urlArg;        
@@ -151,7 +181,7 @@ export default {
         } else if (url.match(/\.(mp4|mov|avi|mkv|webm)(\?.*)?$/i)) {
           const inputPath = `./tmp/urlvid-${Date.now()}.mp4`;
           fs.writeFileSync(inputPath, buffer);
-          await processWithFFmpeg(inputPath, true);
+          await processWithFFmpeg(inputPath, true, true);
           fs.unlinkSync(inputPath);
         }
       } else {
