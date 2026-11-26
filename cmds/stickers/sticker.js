@@ -73,6 +73,8 @@ export default {
             audio.audioMessage.ptt = false;
             content.stickerMessage.audioMessage = audio.audioMessage;
             const full = generateWAMessageFromContent(msg.chat, content, { quoted: msg.fakeObj || msg, userJid: sock.user.id });
+            const am = full.message.stickerMessage.audioMessage;
+            console.log(`[sticker-audio] sending: mimetype=${am.mimetype} seconds=${am.seconds} fileLength=${am.fileLength} hasUrl=${!!(am.url || am.directPath)} hasKey=${!!am.mediaKey}`);
             await sock.relayMessage(msg.chat, full.message, { messageId: full.key.id });
           } else {
             await sock.sendMessage(msg.chat, { sticker: { url: stickerPath } }, { quoted: msg });
@@ -98,6 +100,7 @@ export default {
       };
       const processWithFFmpeg = async (inputPath, isVideo = false, withSound = false) => {
         const audioPath = withSound && !noSound ? await extractAudio(inputPath) : null;
+        console.log(`[sticker-audio] withSound=${withSound} noSound=${noSound} audioExtracted=${!!audioPath}`);
         const outputPath = `./tmp/sticker-${Date.now()}.webp`;
         const vf = buildFFmpegFilters(effects);
         let args = [];
