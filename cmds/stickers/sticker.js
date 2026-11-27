@@ -17,7 +17,7 @@ export default {
   run: async ({ msg, sock, args, usedPrefix, command, text }) => {
     try {
       if (args[0] === '-list') {
-        let helpText = `ꕥ Lista de Formas y Efectos Disponibles para *imagen*:\n\n✦ *Formas:*\n- -c : Crea un sticker circular\n- -t : Crea un sticker triangular\n- -s : Crea un sticker con forma de estrella\n- -r : Crea un sticker con esquinas redondeadas\n- -h : Crea un sticker hexagonal\n- -d : Crea un sticker con forma de diamante\n- -f : Crea un sticker con un marco\n- -b : Crea un sticker con un borde\n- -w : Crea un sticker con forma de onda\n- -m : Crea un sticker espejado\n- -o : Crea un sticker octogonal\n- -y : Crea un sticker pentagonal\n- -e : Crea un sticker elíptico\n- -z : Crea un sticker en forma de cruz\n- -v : Crea un sticker con forma de corazón\n- -x : Crea un sticker expandido (cover)\n- -i : Crea un sticker expandido (contain)\n\n✧ *Efectos:*\n- -blur : Aplica un efecto de desenfoque\n- -sepia : Aplica un efecto sepia\n- -sharpen : Aplica un efecto de nitidez\n- -brighten : Aumenta el brillo\n- -darken : Disminuye el brillo\n- -invert : Invierte los colores\n- -grayscale : Aplica escala de grises\n- -rotate90 : Rota la imagen 90 grados\n- -rotate180 : Rota la imagen 180 grados\n- -flip : Invierte la imagen horizontalmente\n- -flop : Invierte la imagen verticalmente\n- -normalice : Normaliza la imagen\n- -negate : Negatiza la imagen\n- -tint : Aplica un tinte de color a la imagen (rojo por defecto)\n- -nosound : En videos, no conserva el audio (por defecto el sticker suena, máx. 5 s)\n\n> Ejemplo: *${usedPrefix + command} -c -blur Pack | Autor*`;
+        let helpText = `ꕥ Lista de Formas y Efectos Disponibles para *imagen*:\n\n✦ *Formas:*\n- -c : Crea un sticker circular\n- -t : Crea un sticker triangular\n- -s : Crea un sticker con forma de estrella\n- -r : Crea un sticker con esquinas redondeadas\n- -h : Crea un sticker hexagonal\n- -d : Crea un sticker con forma de diamante\n- -f : Crea un sticker con un marco\n- -b : Crea un sticker con un borde\n- -w : Crea un sticker con forma de onda\n- -m : Crea un sticker espejado\n- -o : Crea un sticker octogonal\n- -y : Crea un sticker pentagonal\n- -e : Crea un sticker elíptico\n- -z : Crea un sticker en forma de cruz\n- -v : Crea un sticker con forma de corazón\n- -x : Crea un sticker expandido (cover)\n- -i : Crea un sticker expandido (contain)\n\n✧ *Efectos:*\n- -blur : Aplica un efecto de desenfoque\n- -sepia : Aplica un efecto sepia\n- -sharpen : Aplica un efecto de nitidez\n- -brighten : Aumenta el brillo\n- -darken : Disminuye el brillo\n- -invert : Invierte los colores\n- -grayscale : Aplica escala de grises\n- -rotate90 : Rota la imagen 90 grados\n- -rotate180 : Rota la imagen 180 grados\n- -flip : Invierte la imagen horizontalmente\n- -flop : Invierte la imagen verticalmente\n- -normalice : Normaliza la imagen\n- -negate : Negatiza la imagen\n- -tint : Aplica un tinte de color a la imagen (rojo por defecto)\n- -nosound : En videos, no conserva el audio (por defecto el sticker suena, máx. 10 s)\n\n> Ejemplo: *${usedPrefix + command} -c -blur Pack | Autor*`;
         return sock.reply(msg.chat, helpText, msg);
       }      
       const quoted = msg.quoted || msg;
@@ -53,7 +53,7 @@ export default {
         const audioPath = `./tmp/aud-${Date.now()}.ogg`;
         try {
           await new Promise((resolve, reject) => {
-            const p = spawn(ffmpegPath, ['-y', '-i', inputPath, '-vn', '-map', '0:a:0', '-t', '5', '-af', 'aresample=48000:async=1:first_pts=0', '-c:a', 'libopus', '-b:a', '48k', '-vbr', 'on', '-compression_level', '5', '-ac', '1', '-ar', '48000', '-application', 'audio', '-avoid_negative_ts', 'make_zero', '-f', 'ogg', audioPath], { stdio: ['ignore', 'pipe', 'pipe'] });
+            const p = spawn(ffmpegPath, ['-y', '-i', inputPath, '-vn', '-map', '0:a:0', '-t', '10', '-af', 'aresample=48000:async=1:first_pts=0', '-c:a', 'libopus', '-b:a', '48k', '-vbr', 'on', '-compression_level', '5', '-ac', '1', '-ar', '48000', '-application', 'audio', '-avoid_negative_ts', 'make_zero', '-f', 'ogg', audioPath], { stdio: ['ignore', 'pipe', 'pipe'] });
             p.on('error', reject);
             p.on('close', (code) => code === 0 ? resolve() : reject(new Error('no audio')));
           });
@@ -63,6 +63,16 @@ export default {
           return null;
         }
       };
+      const getDuration = (filePath) => new Promise((resolve) => {
+        const p = spawn(ffmpegPath, ['-i', filePath], { stdio: ['ignore', 'ignore', 'pipe'] });
+        let err = '';
+        p.stderr.on('data', (d) => err += d.toString());
+        p.on('error', () => resolve(0));
+        p.on('close', () => {
+          const m = err.match(/Duration: (\d+):(\d+):(\d+(?:\.\d+)?)/);
+          resolve(m ? Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]) : 0);
+        });
+      });
       const sendWebpWithExif = async (webpBuffer, audioPath = null) => {
         const media = { mimetype: 'webp', data: webpBuffer };
         const metadata = { packname: pack, author: author, categories: [''] };
@@ -76,7 +86,7 @@ export default {
             const audio = await prepareWAMessageMedia({ audio: audioBuf, mimetype: 'audio/ogg; codecs=opus' }, mediaOptions);
             const waveform = Buffer.alloc(64);
             for (let i = 0; i < waveform.length; i++) waveform[i] = 18 + ((audioBuf[(i * 19 + 7) % audioBuf.length] || 0) % 76);
-            audio.audioMessage.seconds = 5;
+            audio.audioMessage.seconds = Math.max(1, Math.min(10, Math.round(await getDuration(audioPath)) || 5));
             audio.audioMessage.ptt = true;
             audio.audioMessage.waveform = waveform;
             content.stickerMessage.isAnimated = true;
@@ -139,10 +149,10 @@ export default {
         });
         let data;
         if (audioPath) {
-          // Los stickers con audio deben pesar poco (WhatsApp descarta los grandes) y durar lo mismo que el audio (5 s)
-          const attempts = [[15, 50], [15, 40], [12, 32], [10, 24], [8, 16], [6, 10]];
+          // Los stickers con audio deben pesar poco (WhatsApp descarta los grandes) y durar lo mismo que el audio (hasta 10 s)
+          const attempts = [[15, 50], [15, 40], [12, 32], [10, 24], [8, 16], [6, 10], [6, 6], [5, 4]];
           for (const [fps, q] of attempts) {
-            await runFfmpeg(['-y', '-i', inputPath, '-t', '5', '-vf', `fps=${fps},${vf}`, '-an', '-c:v', 'libwebp_anim', '-preset', 'picture', '-compression_level', '6', '-q:v', String(q), '-loop', '0', outputPath]);
+            await runFfmpeg(['-y', '-i', inputPath, '-t', '10', '-vf', `fps=${fps},${vf}`, '-an', '-c:v', 'libwebp_anim', '-preset', 'picture', '-compression_level', '6', '-q:v', String(q), '-loop', '0', outputPath]);
             data = fs.readFileSync(outputPath);
             console.log(`[sticker-audio] sticker webp fps=${fps} q=${q} size=${data.length}`);
             if (data.length <= 800 * 1024) break;
