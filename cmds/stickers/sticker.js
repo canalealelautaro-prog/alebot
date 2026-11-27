@@ -238,7 +238,8 @@ const buildFFmpegFilters = (effects, isVideo = false) => {
   const filters = [];
   const shape = effects.find(e => e.type === 'shape')?.value;
   const effectList = effects.filter(e => e.type === 'effect').map(e => e.value);
-  if (shape === 'cover') {
+  // Por defecto rellena todo el cuadrado (recorta lo que sobra); '-i' (contain) mantiene la imagen entera con bordes transparentes
+  if (shape !== 'contain') {
     filters.push(`scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H}`);
   } else {
     filters.push(`scale=${W}:${H}:force_original_aspect_ratio=decrease`);
