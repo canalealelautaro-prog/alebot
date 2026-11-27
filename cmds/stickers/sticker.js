@@ -83,7 +83,15 @@ export default {
             // stickerMessage queda en el prototipo (no se codifica) para que baileys marque el envío como mediatype=sticker
             const payload = Object.assign(Object.create({ stickerMessage: content.stickerMessage }), { audioStickerMessage: { message: { stickerMessage: content.stickerMessage } }, messageContextInfo: { messageSecret: crypto.randomBytes(32) } });
             console.log(`[sticker-audio] sending wrapped: seconds=${audio.audioMessage.seconds} fileLength=${audio.audioMessage.fileLength} hasUrl=${!!(audio.audioMessage.url || audio.audioMessage.directPath)}`);
-            await sock.relayMessage(msg.chat, payload, {});
+            const sentId = `3EB0${crypto.randomBytes(9).toString('hex').toUpperCase()}`;
+            // Diagnóstico: registra la respuesta del servidor de WhatsApp a este envío
+            const onAck = (node) => { if (node?.attrs?.id === sentId) console.log(`[sticker-audio] ack ${JSON.stringify(node.attrs)}`); };
+            const onUpdate = (updates) => { for (const u of updates || []) if (u?.key?.id === sentId) console.log(`[sticker-audio] update ${JSON.stringify(u.update)}`); };
+            try { sock.ws.on('CB:ack,class:message', onAck); } catch {}
+            sock.ev.on('messages.update', onUpdate);
+            setTimeout(() => { try { sock.ws.off('CB:ack,class:message', onAck); } catch {} sock.ev.off('messages.update', onUpdate); }, 60000);
+            await sock.relayMessage(msg.chat, payload, { messageId: sentId });
+            console.log(`[sticker-audio] relayed id=${sentId} to=${msg.chat}`);
           } else {
             await sock.sendMessage(msg.chat, { sticker: { url: stickerPath } }, { quoted: msg });
           }
