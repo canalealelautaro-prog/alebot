@@ -1,9 +1,10 @@
 import fs from 'fs';
+import crypto from 'crypto';
 import path from 'path';
 import { spawn } from 'child_process';
 import fetch from 'node-fetch';
 import ffmpegPath from 'ffmpeg-static';
-import { generateWAMessageContent, generateWAMessageFromContent, prepareWAMessageMedia } from 'baileys';
+import { generateWAMessageContent, prepareWAMessageMedia } from 'baileys';
 import exif from '#core/exif';
 import db from '#db';
 const { writeExif } = exif;
@@ -70,12 +71,18 @@ export default {
             const upload = sock.waUploadToServer;
             const content = await generateWAMessageContent({ sticker: { url: stickerPath } }, { upload });
             const audio = await prepareWAMessageMedia({ audio: { url: audioPath }, mimetype: 'audio/ogg; codecs=opus' }, { upload });
-            audio.audioMessage.ptt = false;
+            const audioBuf = fs.readFileSync(audioPath);
+            const waveform = Buffer.alloc(64);
+            for (let i = 0; i < waveform.length; i++) waveform[i] = 18 + ((audioBuf[(i * 19 + 7) % audioBuf.length] || 0) % 76);
+            audio.audioMessage.seconds = 5;
+            audio.audioMessage.ptt = true;
+            audio.audioMessage.waveform = waveform;
+            content.stickerMessage.isAnimated = true;
             content.stickerMessage.audioMessage = audio.audioMessage;
-            const full = generateWAMessageFromContent(msg.chat, content, { quoted: msg.fakeObj || msg, userJid: sock.user.id });
-            const am = full.message.stickerMessage.audioMessage;
-            console.log(`[sticker-audio] sending: mimetype=${am.mimetype} seconds=${am.seconds} fileLength=${am.fileLength} hasUrl=${!!(am.url || am.directPath)} hasKey=${!!am.mediaKey}`);
-            await sock.relayMessage(msg.chat, full.message, { messageId: full.key.id });
+            // WhatsApp envía los stickers con audio envueltos en audioStickerMessage (campo 134)
+            const payload = { audioStickerMessage: { message: { stickerMessage: content.stickerMessage } }, messageContextInfo: { messageSecret: crypto.randomBytes(32) } };
+            console.log(`[sticker-audio] sending wrapped: seconds=${audio.audioMessage.seconds} fileLength=${audio.audioMessage.fileLength} hasUrl=${!!(audio.audioMessage.url || audio.audioMessage.directPath)}`);
+            await sock.relayMessage(msg.chat, payload, {});
           } else {
             await sock.sendMessage(msg.chat, { sticker: { url: stickerPath } }, { quoted: msg });
           }
