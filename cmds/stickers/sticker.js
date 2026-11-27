@@ -5,6 +5,7 @@ import { spawn } from 'child_process';
 import fetch from 'node-fetch';
 import ffmpegPath from 'ffmpeg-static';
 import { generateWAMessageContent, prepareWAMessageMedia } from 'baileys';
+import { patchAudioStickerProtocol } from '../../core/audioStickerPatch.js';
 import exif from '#core/exif';
 import db from '#db';
 const { writeExif } = exif;
@@ -81,8 +82,8 @@ export default {
             content.stickerMessage.isAnimated = true;
             content.stickerMessage.audioMessage = audio.audioMessage;
             // WhatsApp envía los stickers con audio envueltos en audioStickerMessage (campo 134)
-            // stickerMessage queda en el prototipo (no se codifica) para que baileys marque el envío como mediatype=sticker
-            const payload = Object.assign(Object.create({ stickerMessage: content.stickerMessage }), { audioStickerMessage: { message: { stickerMessage: content.stickerMessage } }, messageContextInfo: { messageSecret: crypto.randomBytes(32) } });
+            patchAudioStickerProtocol();
+            const payload = { ...content, audioStickerMessage: { message: content }, messageContextInfo: { messageSecret: crypto.randomBytes(32) } };
             console.log(`[sticker-audio] sending wrapped: seconds=${audio.audioMessage.seconds} fileLength=${audio.audioMessage.fileLength} hasUrl=${!!(audio.audioMessage.url || audio.audioMessage.directPath)}`);
             const sentId = `3EB0${crypto.randomBytes(9).toString('hex').toUpperCase()}`;
             // Diagnóstico: registra la respuesta del servidor de WhatsApp a este envío
