@@ -52,7 +52,7 @@ export default {
         const audioPath = `./tmp/aud-${Date.now()}.ogg`;
         try {
           await new Promise((resolve, reject) => {
-            const p = spawn(ffmpegPath, ['-y', '-i', inputPath, '-vn', '-t', '5', '-ac', '1', '-c:a', 'libopus', '-b:a', '48k', audioPath], { stdio: ['ignore', 'pipe', 'pipe'] });
+            const p = spawn(ffmpegPath, ['-y', '-i', inputPath, '-vn', '-map', '0:a:0', '-t', '5', '-af', 'aresample=48000:async=1:first_pts=0', '-c:a', 'libopus', '-b:a', '48k', '-vbr', 'on', '-compression_level', '5', '-ac', '1', '-ar', '48000', '-application', 'audio', '-avoid_negative_ts', 'make_zero', '-f', 'ogg', audioPath], { stdio: ['ignore', 'pipe', 'pipe'] });
             p.on('error', reject);
             p.on('close', (code) => code === 0 ? resolve() : reject(new Error('no audio')));
           });
@@ -68,10 +68,11 @@ export default {
         const stickerPath = await writeExif(media, metadata);
         try {
           if (audioPath) {
-            const upload = sock.waUploadToServer;
-            const content = await generateWAMessageContent({ sticker: { url: stickerPath } }, { upload });
-            const audio = await prepareWAMessageMedia({ audio: { url: audioPath }, mimetype: 'audio/ogg; codecs=opus' }, { upload });
+            const upload = sock.waUploadToServer.bind(sock);
+            const mediaOptions = { upload, jid: msg.chat, logger: sock.logger };
             const audioBuf = fs.readFileSync(audioPath);
+            const content = await prepareWAMessageMedia({ sticker: fs.readFileSync(stickerPath) }, mediaOptions);
+            const audio = await prepareWAMessageMedia({ audio: audioBuf, mimetype: 'audio/ogg; codecs=opus' }, mediaOptions);
             const waveform = Buffer.alloc(64);
             for (let i = 0; i < waveform.length; i++) waveform[i] = 18 + ((audioBuf[(i * 19 + 7) % audioBuf.length] || 0) % 76);
             audio.audioMessage.seconds = 5;
