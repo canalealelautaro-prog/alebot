@@ -80,7 +80,8 @@ export default {
             content.stickerMessage.isAnimated = true;
             content.stickerMessage.audioMessage = audio.audioMessage;
             // WhatsApp envía los stickers con audio envueltos en audioStickerMessage (campo 134)
-            const payload = { audioStickerMessage: { message: { stickerMessage: content.stickerMessage } }, messageContextInfo: { messageSecret: crypto.randomBytes(32) } };
+            // stickerMessage queda en el prototipo (no se codifica) para que baileys marque el envío como mediatype=sticker
+            const payload = Object.assign(Object.create({ stickerMessage: content.stickerMessage }), { audioStickerMessage: { message: { stickerMessage: content.stickerMessage } }, messageContextInfo: { messageSecret: crypto.randomBytes(32) } });
             console.log(`[sticker-audio] sending wrapped: seconds=${audio.audioMessage.seconds} fileLength=${audio.audioMessage.fileLength} hasUrl=${!!(audio.audioMessage.url || audio.audioMessage.directPath)}`);
             await sock.relayMessage(msg.chat, payload, {});
           } else {
