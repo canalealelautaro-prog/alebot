@@ -243,10 +243,10 @@ export async function startBot() {
         if (!msg?.message || msg.key?.remoteJid === "status@broadcast") continue;
         if ((msg.messageTimestamp * 1000) < bootTime - 15_000) continue;
         if (msg.message.ephemeralMessage) msg.message = msg.message.ephemeralMessage.message;
-        if (msg.message.stickerMessage) {
+        if (msg.message.stickerMessage || msg.message.audioStickerMessage) {
           try {
             const redact = (k, v) => (v && v.type === 'Buffer') || v instanceof Uint8Array ? `<${v.length || v.data?.length} bytes>` : (/^(url|directPath)$/.test(k) ? '<redacted>' : v);
-            console.log('[sticker-in]', JSON.stringify({ keys: Object.keys(msg.message), sticker: msg.message.stickerMessage }, redact));
+            console.log('[sticker-in]', JSON.stringify({ keys: Object.keys(msg.message), sticker: msg.message.stickerMessage, wrapped: msg.message.audioStickerMessage }, redact));
           } catch (e) { console.log('[sticker-in] error', e.message); }
         }
         const m = await smsg(sock, msg);
