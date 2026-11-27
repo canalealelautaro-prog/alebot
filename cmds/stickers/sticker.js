@@ -117,8 +117,8 @@ export default {
         } else {
           args = ['-y', '-i', inputPath, '-vf', vf, '-an', '-fps_mode', 'passthrough', '-c:v', 'libwebp_anim', '-preset', 'picture', '-compression_level', '6', '-q:v', '70', '-loop', '0', outputPath];
         }
-        await new Promise((resolve, reject) => {
-          const p = spawn(ffmpegPath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+        const runFfmpeg = (a) => new Promise((resolve, reject) => {
+          const p = spawn(ffmpegPath, a, { stdio: ['ignore', 'pipe', 'pipe'] });
           let err = '';
           p.stderr.on('data', (d) => err += d.toString());
           p.on('error', (e) => reject(e));
@@ -127,7 +127,20 @@ export default {
             else reject(new Error(err));
           });
         });
-        const data = fs.readFileSync(outputPath);
+        let data;
+        if (audioPath) {
+          // Los stickers con audio deben pesar poco (WhatsApp descarta los grandes) y durar lo mismo que el audio (5 s)
+          const attempts = [[15, 50], [15, 40], [12, 32], [10, 24], [8, 16], [6, 10]];
+          for (const [fps, q] of attempts) {
+            await runFfmpeg(['-y', '-i', inputPath, '-t', '5', '-vf', `fps=${fps},${vf}`, '-an', '-c:v', 'libwebp_anim', '-preset', 'picture', '-compression_level', '6', '-q:v', String(q), '-loop', '0', outputPath]);
+            data = fs.readFileSync(outputPath);
+            console.log(`[sticker-audio] sticker webp fps=${fps} q=${q} size=${data.length}`);
+            if (data.length <= 800 * 1024) break;
+          }
+        } else {
+          await runFfmpeg(args);
+          data = fs.readFileSync(outputPath);
+        }
         fs.unlinkSync(outputPath);
         await sendWebpWithExif(data, audioPath);
       };
